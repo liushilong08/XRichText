@@ -7,6 +7,8 @@ import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
@@ -30,8 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-//import com.bumptech.glide.request.animation.GlideAnimation;
 
 /**
  * Created by sendtion on 2016/6/24.
@@ -258,28 +258,6 @@ public class RichTextEditor extends ScrollView {
 	}
 
 	/**
-	 * 处理图片点击事件
-     */
-	private void onImageClick(DataImageView imageView) {
-		//int currentItem = imagePaths.indexOf(imageView.getAbsolutePath());
-//		disappearingImageIndex = allLayout.indexOfChild(imageView);
-//		//根据点击的view所在位置获取到图片地址
-//		List<EditData> dataList = buildEditData();
-//		EditData editData = dataList.get(disappearingImageIndex);
-//		//Log.i("", "###editData: "+editData);
-//		if (editData.imagePath != null){
-//			currentItem = imagePaths.indexOf(editData.imagePath);
-//		}
-
-		//点击图片预览
-//		PhotoPreview.builder()
-//				.setPhotos(imagePaths)
-//				.setCurrentItem(currentItem)
-//				.setShowDeleteButton(false)
-//				.start(activity);
-	}
-
-	/**
 	 * 清空所有布局
 	 */
 	public void clearAllLayout(){
@@ -290,8 +268,8 @@ public class RichTextEditor extends ScrollView {
 	 * 获取索引位置
      */
 	public int getLastIndex(){
-		int lastEditIndex = allLayout.getChildCount();
-		return lastEditIndex;
+		int childCount = allLayout.getChildCount();
+		return childCount;
 	}
 
 	/**
@@ -328,20 +306,9 @@ public class RichTextEditor extends ScrollView {
 	}
 
 	/**
-	 * 根据绝对路径添加view
-	 */
-	public void insertImage(String imagePath, int width) {
-		if (TextUtils.isEmpty(imagePath)){
-			return;
-		}
-		Bitmap bmp = getScaledBitmap(imagePath, width);
-		insertImage(bmp, imagePath);
-	}
-
-	/**
 	 * 插入一张图片
 	 */
-	public void insertImage(Bitmap bitmap, String imagePath) {
+	public void insertImage(String imagePath) {
 		//bitmap == null时，可能是网络图片，不能做限制
 		if (TextUtils.isEmpty(imagePath)){
 			return;
@@ -357,16 +324,16 @@ public class RichTextEditor extends ScrollView {
 			if (lastEditStr.length() == 0) {
 				//如果当前获取焦点的EditText为空，直接在EditText下方插入图片，并且插入空的EditText
 				addEditTextAtIndex(lastEditIndex + 1, "");
-				addImageViewAtIndex(lastEditIndex + 1, bitmap, imagePath);
+				addImageViewAtIndex(lastEditIndex + 1, imagePath);
 			} else if (editStr1.length() == 0) {
 				//如果光标已经顶在了editText的最前面，则直接插入图片，并且EditText下移即可
-				addImageViewAtIndex(lastEditIndex, bitmap, imagePath);
+				addImageViewAtIndex(lastEditIndex, imagePath);
 				//同时插入一个空的EditText，防止插入多张图片无法写文字
 				addEditTextAtIndex(lastEditIndex + 1, "");
 			} else if (editStr2.length() == 0) {
 				// 如果光标已经顶在了editText的最末端，则需要添加新的imageView和EditText
 				addEditTextAtIndex(lastEditIndex + 1, "");
-				addImageViewAtIndex(lastEditIndex + 1, bitmap, imagePath);
+				addImageViewAtIndex(lastEditIndex + 1, imagePath);
 			} else {
 				//如果光标已经顶在了editText的最中间，则需要分割字符串，分割成两个EditText，并在两个EditText中间插入图片
 				//把光标前面的字符串保留，设置给当前获得焦点的EditText（此为分割出来的第一个EditText）
@@ -376,7 +343,7 @@ public class RichTextEditor extends ScrollView {
 				//在第二个EditText的位置插入一个空的EditText，以便连续插入多张图片时，有空间写文字，第二个EditText下移
 				addEditTextAtIndex(lastEditIndex + 1, "");
 				//在空的EditText的位置插入图片布局，空的EditText下移
-				addImageViewAtIndex(lastEditIndex + 1, bitmap, imagePath);
+				addImageViewAtIndex(lastEditIndex + 1, imagePath);
 			}
 			hideKeyBoard();
 		} catch (Exception e) {
@@ -458,41 +425,38 @@ public class RichTextEditor extends ScrollView {
 	/**
 	 * 在特定位置添加ImageView
 	 */
-	public void addImageViewAtIndex(final int index, Bitmap bmp, String imagePath) {
-		//bitmap == null时，可能是网络图片，不能做限制
+	public void addImageViewAtIndex(final int index, final String imagePath) {
 		if (TextUtils.isEmpty(imagePath)){
 			return;
 		}
 		try {
 			imagePaths.add(imagePath);
-			RelativeLayout imageLayout = createImageLayout();
-			DataImageView imageView = (DataImageView) imageLayout.findViewById(R.id.edit_imageView);
-			GlideApp.with(getContext()).load(imagePath).centerCrop().into(imageView);
+			final RelativeLayout imageLayout = createImageLayout();
+			DataImageView imageView = imageLayout.findViewById(R.id.edit_imageView);
 			imageView.setAbsolutePath(imagePath);
-			imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);//裁剪剧中
+			//imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);//裁剪剧中
+			XRichText.getInstance().loadImage(imagePath, imageView, rtImageHeight);
 
-			// 调整imageView的高度，根据宽度等比获得高度
-			int imageHeight ; //解决连续加载多张图片导致后续图片都跟第一张高度相同的问题
-			if (rtImageHeight > 0) {
-				imageHeight = rtImageHeight;
-			} else {
-				int layoutWidth = allLayout.getWidth() - allLayout.getPaddingLeft() - allLayout.getPaddingRight();
-				imageHeight = layoutWidth * bmp.getHeight() / bmp.getWidth();
-				//imageHeight = allLayout.getWidth() * bmp.getHeight() / bmp.getWidth();
-			}
-			//int imageHeight = allLayout.getWidth() * bmp.getHeight() / bmp.getWidth();
-			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
-					LayoutParams.MATCH_PARENT, imageHeight);//TODO 固定图片高度500，考虑自定义属性
-			lp.bottomMargin = rtImageBottom;
-			imageView.setLayoutParams(lp);
-
-			if (rtImageHeight > 0){
-				GlideApp.with(getContext()).load(imagePath).centerCrop()
-						.placeholder(R.drawable.img_load_fail).error(R.drawable.img_load_fail).into(imageView);
-			} else {
-				GlideApp.with(getContext()).load(imagePath)
-						.placeholder(R.drawable.img_load_fail).error(R.drawable.img_load_fail).into(imageView);
-			}
+//			// 调整imageView的高度，根据宽度等比获得高度
+//			int imageHeight ; //解决连续加载多张图片导致后续图片都跟第一张高度相同的问题
+//			if (rtImageHeight > 0) {
+//				imageHeight = rtImageHeight;
+//			} else {
+//				Bitmap bmp = BitmapFactory.decodeFile(imagePath);
+//				int layoutWidth = allLayout.getWidth() - allLayout.getPaddingLeft() - allLayout.getPaddingRight();
+//				imageHeight = layoutWidth * bmp.getHeight() / bmp.getWidth();
+//				//imageHeight = allLayout.getWidth() * bmp.getHeight() / bmp.getWidth();
+//			}
+//			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+//					LayoutParams.MATCH_PARENT, imageHeight);//固定图片高度，记得设置裁剪剧中
+//			lp.bottomMargin = rtImageBottom;
+//			imageView.setLayoutParams(lp);
+//
+//			if (rtImageHeight > 0){
+//				XRichText.getInstance().loadImage(imagePath, imageView, true);
+//			} else {
+//				XRichText.getInstance().loadImage(imagePath, imageView, false);
+//			}
 
 			// onActivityResult无法触发动画，此处post处理
 			allLayout.addView(imageLayout, index);
@@ -502,48 +466,6 @@ public class RichTextEditor extends ScrollView {
 //					allLayout.addView(imageLayout, index);
 //				}
 //			}, 200);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	/**
-	 * 在特定位置添加ImageView
-	 */
-	public void addImageViewAtIndex(final int index, final String imagePath) {
-		if (TextUtils.isEmpty(imagePath)){
-			return;
-		}
-		try {
-			imagePaths.add(imagePath);
-			RelativeLayout imageLayout = createImageLayout();
-			final DataImageView imageView = (DataImageView) imageLayout.findViewById(R.id.edit_imageView);
-			imageView.setAbsolutePath(imagePath);
-
-			// 调整imageView的高度，根据宽度等比获得高度
-			int imageHeight ; //解决连续加载多张图片导致后续图片都跟第一张高度相同的问题
-			if (rtImageHeight > 0) {
-				imageHeight = rtImageHeight;
-			} else {
-				Bitmap bmp = BitmapFactory.decodeFile(imagePath);
-				int layoutWidth = allLayout.getWidth() - allLayout.getPaddingLeft() - allLayout.getPaddingRight();
-				imageHeight = layoutWidth * bmp.getHeight() / bmp.getWidth();
-				//imageHeight = allLayout.getWidth() * bmp.getHeight() / bmp.getWidth();
-			}
-			RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
-					LayoutParams.MATCH_PARENT, imageHeight);//固定图片高度，记得设置裁剪剧中
-			lp.bottomMargin = rtImageBottom;
-			imageView.setLayoutParams(lp);
-
-			if (rtImageHeight > 0){
-				GlideApp.with(getContext()).load(imagePath).centerCrop()
-						.placeholder(R.drawable.img_load_fail).error(R.drawable.img_load_fail).into(imageView);
-			} else {
-				GlideApp.with(getContext()).load(imagePath)
-						.placeholder(R.drawable.img_load_fail).error(R.drawable.img_load_fail).into(imageView);
-			}
-			// onActivityResult无法触发动画，此处post处理
-			allLayout.addView(imageLayout, index);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
